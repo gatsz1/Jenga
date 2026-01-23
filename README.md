@@ -48,41 +48,41 @@ Example 1:The Structure Must start with Anza end with Maliza
     maliza
 
 Example 2:Variables
-    anza
+anza
     namba x = 10;
     namba y = 20;
     andika(x + y);
-    maliza
+maliza
 
 Example 3:if/else statements
-
+anza
     kama (x > 10) anza
     andika("Kubwa");
     maliza sivyo anza
     andika("Ndogo");
-
+maliza
 Example 4:Loops
-
+anza
     namba i = 0;
     wakati (i < 5) anza
     andika(i);
     i = i + 1;
     maliza
-
+maliza
 Example 5: Switch
-    
+anza    
     chagua (x) anza
     kisa 1: andika("Moja");
     kisa 2: andika("Mbili");
     kawaida: andika("Nyingine");
     maliza 
-
+maliza
 Example 6: Arrays
-
+anza
     safu a = safu(5); 
     a[0] = 100;        
     andika(a[0]); 
-
+maliza
 Example 7: Hesabu.j
 
 anza
