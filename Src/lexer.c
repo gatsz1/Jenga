@@ -4,15 +4,29 @@ void next_token() {
     while(*src) {
         if(isspace(*src)) { src++; continue; }
         if(*src == '/' && *(src+1) == '/') { 
-            while(*src && *src != '\n') src++; continue; 
+            while(*src && *src != '\n') src++; 
+            continue; 
         }
         if(*src == '#') { 
-            while(*src && *src != '\n') src++; continue; 
+            while(*src && *src != '\n') src++; 
+            continue; 
         }
         break;
     }
 
     if(*src == '\0') { current.type = TOK_EOF; return; }
+
+    if(*src == '"') {
+        src++; 
+        int i = 0;
+        while(*src && *src != '"') {
+            current.text[i++] = *src++;
+        }
+        if(*src == '"') src++; 
+        current.text[i] = '\0';
+        current.type = TOK_STR;
+        return;
+    }
 
     if(isdigit(*src)) {
         current.type = TOK_NUM; current.val = 0;
@@ -38,15 +52,6 @@ void next_token() {
         return;
     }
 
-    if(*src == '"') {
-        src++; int i = 0;
-        while(*src && *src != '"') current.text[i++] = *src++;
-        current.text[i] = '\0';
-        if(*src == '"') src++;
-        current.type = TOK_STR;
-        return;
-    }
-
     switch(*src++) {
         case '{': current.type = TOK_LBRACE; break;
         case '}': current.type = TOK_RBRACE; break;
@@ -67,11 +72,6 @@ void next_token() {
         case '!': if(*src=='='){src++; current.type=TOK_NEQ;} break; 
         case '<': if(*src=='='){src++; current.type=TOK_LEQ;} else current.type=TOK_LT; break;
         case '>': if(*src=='='){src++; current.type=TOK_GEQ;} else current.type=TOK_GT; break;
-        default: printf("Lexer Error: Unknown char '%c'\n", src[-1]); exit(1);
+        default: printf("Unknown char: %c\n", *(src-1)); exit(1);
     }
-}
-
-void match(TokenType t) {
-    if(current.type == t) next_token();
-    else { printf("Syntax Error: Expected token %d\n", t); exit(1); }
 }
