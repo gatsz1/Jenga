@@ -38,7 +38,15 @@ sivyo   | else               | Else (Not so)
 chagua  | switch             | Choose
 kisa    | case               | Case (Incident)
 kawaida | default            | Default (Normal)
+kwa     | for                | For Loop
+kweli   | true               | Boolean True
+sikweli | false              | Boolean False
 ------------------------------------------------------------
+
+Comments:
+    // single-line comment
+    /* multi-line
+       comment */
 
 Example 1: The Structure (Must start with Anza, end with Maliza)
 
@@ -49,9 +57,9 @@ Example 1: The Structure (Must start with Anza, end with Maliza)
 Example 2: Variables
 
     anza
-        namba x = 10;
-        namba y = 20;
-        andika(x + y);
+        namba my_number = 10;
+        namba other_number = 20;
+        andika(my_number + other_number);
     maliza
 
 Example 3: If/Else Statements
@@ -78,6 +86,14 @@ Example 4: Loops
         maliza
     maliza
 
+Example 4b: For Loop
+
+    anza
+        kwa (namba i = 0; i < 5; i = i + 1) anza
+            andika(i);
+        maliza
+    maliza
+
 Example 5: Switch
 
     anza
@@ -98,4 +114,21 @@ Example 6: Arrays
         a[1] = 20;
         
         andika(a[0] + a[1]);
+    maliza
+
+Example 7: String Concatenation
+
+    anza
+        andika("Habari " + "Dunia");
+    maliza
+
+Example 8: Booleans
+
+    anza
+        namba x = 1;
+        kama (kweli) anza
+            andika("True Branch");
+        maliza sivyo anza
+            andika("False Branch");
+        maliza
     maliza

@@ -37,7 +37,10 @@ typedef struct {
 #define STACK_MAX 256
 Value stack[STACK_MAX];
 int sp = 0; 
-Value globals[26]; 
+#define MAX_GLOBALS 256
+Value globals[MAX_GLOBALS];
+char* global_names[MAX_GLOBALS];
+int globals_count = 0;
 
 Obj* heap_head = NULL; 
 int num_objects = 0;
@@ -93,6 +96,18 @@ void collect_garbage() {
     
    /* printf("%d%d)\n", num_objects, max_objects);*/
 }
+
+int resolve_global(const char* name) {
+    for (int i = 0; i < globals_count; i++) {
+        if (!strcmp(global_names[i], name)) return i;
+    }
+    if (globals_count >= MAX_GLOBALS) {
+        printf("Kosa: Too many global variables\n");
+        exit(1);
+    }
+    global_names[globals_count] = strdup(name);
+    return globals_count++;
+}
 Obj* allocate_obj(ObjType type) {
     if (num_objects >= max_objects) collect_garbage();
     
@@ -113,6 +128,8 @@ typedef enum {
     TOK_KAMA, TOK_SIVYO,             
     TOK_WAKATI, TOK_FANYA,           
     TOK_CHAGUA, TOK_KISA, TOK_KAWAIDA, 
+    TOK_KWA,
+    TOK_TRUE, TOK_FALSE,
     TOK_ID, TOK_NUM_LIT, TOK_STR_LIT,
     TOK_ASSIGN, TOK_SEMI, TOK_PLUS, TOK_MINUS, 
     TOK_EQ, TOK_LT, TOK_GT, TOK_COLON,
@@ -123,8 +140,26 @@ typedef struct { TokenType type; char text[128]; int num; } Token;
 char* src;
 Token current;
 
+void skip_whitespace_and_comments() {
+    while (1) {
+        while (isspace(*src)) src++;
+        if (src[0] == '/' && src[1] == '/') {
+            src += 2;
+            while (*src != '\n' && *src != '\0') src++;
+            continue;
+        }
+        if (src[0] == '/' && src[1] == '*') {
+            src += 2;
+            while (*src != '\0' && !(src[0] == '*' && src[1] == '/')) src++;
+            if (src[0] == '*' && src[1] == '/') src += 2;
+            continue;
+        }
+        break;
+    }
+}
+
 void next_token() {
-    while (isspace(*src)) src++;
+    skip_whitespace_and_comments();
     if (*src == '\0') { current.type = TOK_EOF; return; }
 
     if (isdigit(*src)) {
@@ -144,9 +179,9 @@ void next_token() {
     }
 
     /*keywords*/
-    if (isalpha(*src)) {
+    if (isalpha(*src) || *src == '_') {
         int i = 0;
-        while (isalnum(*src)) current.text[i++] = *src++;
+        while (isalnum(*src) || *src == '_') current.text[i++] = *src++;
         current.text[i] = '\0';
         
         if (!strcmp(current.text, "namba")) current.type = TOK_NAMBA;
@@ -161,6 +196,9 @@ void next_token() {
         else if (!strcmp(current.text, "chagua")) current.type = TOK_CHAGUA; // switch
         else if (!strcmp(current.text, "kisa")) current.type = TOK_KISA;     // case
         else if (!strcmp(current.text, "kawaida")) current.type = TOK_KAWAIDA; // default
+        else if (!strcmp(current.text, "kwa")) current.type = TOK_KWA;       // for
+        else if (!strcmp(current.text, "kweli")) current.type = TOK_TRUE;    // true
+        else if (!strcmp(current.text, "sikweli")) current.type = TOK_FALSE; // false
         else current.type = TOK_ID;
         return;
     }
@@ -222,13 +260,17 @@ int expr();
 void primary() {
     if (current.type == TOK_NUM_LIT) {
         emit(OP_CONST); emit(current.num); match(TOK_NUM_LIT);
+    } else if (current.type == TOK_TRUE) {
+        emit(OP_CONST); emit(1); match(TOK_TRUE);
+    } else if (current.type == TOK_FALSE) {
+        emit(OP_CONST); emit(0); match(TOK_FALSE);
     } else if (current.type == TOK_STR_LIT) {
         emit(OP_CONST_STR); 
         str_pool[str_idx] = strdup(current.text);
         emit(str_idx++); 
         match(TOK_STR_LIT);
     } else if (current.type == TOK_ID) {
-        int var = current.text[0] - 'a';
+        int var = resolve_global(current.text);
         match(TOK_ID);
         emit(OP_GET_VAR); emit(var);
 
@@ -277,7 +319,7 @@ void statement() {
         if (current.type == TOK_NAMBA) match(TOK_NAMBA);
         else match(TOK_SAFU);
         
-        int var = current.text[0] - 'a';
+        int var = resolve_global(current.text);
         match(TOK_ID);
         match(TOK_ASSIGN);
         expr();
@@ -285,7 +327,7 @@ void statement() {
         match(TOK_SEMI);
     }
     else if (current.type == TOK_ID) {
-        int var = current.text[0] - 'a';
+        int var = resolve_global(current.text);
         match(TOK_ID);
         
         if (current.type == TOK_ASSIGN) {
@@ -302,6 +344,94 @@ void statement() {
             emit(OP_SET_IDX);
         }
         match(TOK_SEMI);
+    }
+    else if (current.type == TOK_KWA) {
+        match(TOK_KWA); match(TOK_LPAREN);
+
+        if (current.type != TOK_SEMI) {
+            if (current.type == TOK_NAMBA || current.type == TOK_SAFU) {
+                if (current.type == TOK_NAMBA) match(TOK_NAMBA);
+                else match(TOK_SAFU);
+                int var = resolve_global(current.text);
+                match(TOK_ID);
+                match(TOK_ASSIGN);
+                expr();
+                emit(OP_SET_VAR); emit(var);
+                match(TOK_SEMI);
+            } else if (current.type == TOK_ID) {
+                int var = resolve_global(current.text);
+                match(TOK_ID);
+                if (current.type == TOK_ASSIGN) {
+                    match(TOK_ASSIGN);
+                    expr();
+                    emit(OP_SET_VAR); emit(var);
+                } else if (current.type == TOK_LBRACKET) {
+                    emit(OP_GET_VAR); emit(var);
+                    match(TOK_LBRACKET);
+                    expr();
+                    match(TOK_RBRACKET);
+                    match(TOK_ASSIGN);
+                    expr();
+                    emit(OP_SET_IDX);
+                } else {
+                    printf("Syntax Error: Invalid for-loop init\n");
+                    exit(1);
+                }
+                match(TOK_SEMI);
+            } else {
+                printf("Syntax Error: Invalid for-loop init\n");
+                exit(1);
+            }
+        } else {
+            match(TOK_SEMI);
+        }
+
+        int loop_start = code_idx;
+        if (current.type != TOK_SEMI) {
+            expr();
+        } else {
+            emit(OP_CONST); emit(1);
+        }
+        match(TOK_SEMI);
+
+        emit(OP_JZ); int patch_end = code_idx++;
+        emit(OP_JMP); int patch_body = code_idx++;
+        int post_start = code_idx;
+
+        if (current.type != TOK_RPAREN) {
+            if (current.type == TOK_ID) {
+                int var = resolve_global(current.text);
+                match(TOK_ID);
+                if (current.type == TOK_ASSIGN) {
+                    match(TOK_ASSIGN);
+                    expr();
+                    emit(OP_SET_VAR); emit(var);
+                } else if (current.type == TOK_LBRACKET) {
+                    emit(OP_GET_VAR); emit(var);
+                    match(TOK_LBRACKET);
+                    expr();
+                    match(TOK_RBRACKET);
+                    match(TOK_ASSIGN);
+                    expr();
+                    emit(OP_SET_IDX);
+                } else {
+                    printf("Syntax Error: Invalid for-loop post\n");
+                    exit(1);
+                }
+            } else {
+                printf("Syntax Error: Invalid for-loop post\n");
+                exit(1);
+            }
+        }
+
+        emit(OP_JMP); emit(loop_start);
+
+        int body_start = code_idx;
+        code[patch_body] = body_start;
+        match(TOK_RPAREN);
+        block();
+        emit(OP_JMP); emit(post_start);
+        code[patch_end] = code_idx;
     }
     else if (current.type == TOK_KAMA) { 
         match(TOK_KAMA); match(TOK_LPAREN); expr(); match(TOK_RPAREN);
@@ -340,7 +470,7 @@ void statement() {
     }
     else if (current.type == TOK_CHAGUA) { 
         match(TOK_CHAGUA); match(TOK_LPAREN); 
-        int var = current.text[0] - 'a';
+        int var = resolve_global(current.text);
         match(TOK_ID); match(TOK_RPAREN); match(TOK_ANZA);
         
         int end_jumps[20]; int end_count = 0;
@@ -380,7 +510,7 @@ void block() {
 void run_vm() {
     int ip = 0;
 
-    for(int i=0;i<26;i++) globals[i] = (Value){VAL_NUM, {0}};
+    for(int i=0;i<MAX_GLOBALS;i++) globals[i] = (Value){VAL_NUM, {0}};
 
     while (1) {
         int op = code[ip++];
@@ -429,9 +559,24 @@ void run_vm() {
             }
             
             case OP_ADD: {
-                int b = stack[--sp].as.num;
-                int a = stack[--sp].as.num;
-                stack[sp++] = (Value){VAL_NUM, {.num = a + b}};
+                Value b = stack[--sp];
+                Value a = stack[--sp];
+                if (a.type == VAL_NUM && b.type == VAL_NUM) {
+                    stack[sp++] = (Value){VAL_NUM, {.num = a.as.num + b.as.num}};
+                } else if (a.type == VAL_OBJ && b.type == VAL_OBJ &&
+                           a.as.obj->type == OBJ_STRING && b.as.obj->type == OBJ_STRING) {
+                    int la = (int)strlen(a.as.obj->as.chars);
+                    int lb = (int)strlen(b.as.obj->as.chars);
+                    Obj* obj = allocate_obj(OBJ_STRING);
+                    obj->as.chars = (char*)malloc(la + lb + 1);
+                    memcpy(obj->as.chars, a.as.obj->as.chars, la);
+                    memcpy(obj->as.chars + la, b.as.obj->as.chars, lb);
+                    obj->as.chars[la + lb] = '\0';
+                    stack[sp++] = (Value){VAL_OBJ, {.obj = obj}};
+                } else {
+                    printf("Kosa: Invalid operands for +\n");
+                    exit(1);
+                }
                 break;
             }
 
